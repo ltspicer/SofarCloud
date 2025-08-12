@@ -1,0 +1,224 @@
+#!/usr/bin/python3
+
+###################################################################################################
+#################################             V1.0               ##################################
+#############################  SofarCloud-Daten per MQTT versenden  ###############################
+#################################   (C) 2025 Daniel Luginbühl    ##################################
+###################################################################################################
+
+####################################### WICHTIGE INFOS ############################################
+################     Im Smarthome System ist ein MQTT Broker zu installieren      #################
+################ ---------------------------------------------------------------- #################
+################          Falls Raspberry: Alles als User PI ausführen!           #################
+################ ---------------------------------------------------------------- #################
+################ sofarcloud.py Script auf Rechte 754 setzen mit:                  #################
+################ chmod 754 sofarcloud.py                                          #################
+################ Dieses Script per Cronjob alle 5 Minuten ausführen:              #################
+################ crontab -e                                                       #################
+################ */5 * * * * /home/pi/sofarcloud.py       # Pfad ggf anpassen!    #################
+################ ---------------------------------------------------------------- #################
+################ Vorgängig zu installieren (auf Host, wo dieses Script läuft):    #################
+################    pip3 install requests                                         #################
+################    pip3 install paho-mqtt                                        #################
+################    pip3 install typing-extensions                                #################
+###################################################################################################
+
+""" Deine Eintragungen ab hier:"""
+
+###################################################################################################
+################################### Hier Einträge anpassen! #######################################
+
+USERNAME = "uuuuu@gmail.com"    # Deine Email Adresse bei SofarCloud
+PASSWORD = "ppppppppp"          # Dein Passwort bei SofarCloud
+
+BROKER_ADDRESS = "192.168.1.50" # MQTT Broker IP (da wo der MQTT Broker läuft)
+MQTT_USER = "xxxxxx"            # MQTT User      (im MQTT Broker definiert)
+MQTT_PASS = "yyyyyy"            # MQTT Passwort  (im MQTT Broker definiert)
+MQTT_PORT = 1883                # MQTT Port      (default: 1883)
+
+#----------------------------- Kann normalerweise belassen werden: -------------------------------#
+
+MQTT_ACTIVE = True              # Auf False, wenn nichts MQTT published werden soll
+
+CREATE_JSON = True              # True = erstelle sofar_realtime.json
+JSON_PATH = ""                  # Pfad für die Json Datei. Standardpfad ist bei Script.
+                                # sonst zBsp.: JSON_PATH = "/home/pi/"
+
+DELAY = False                   # Auf True setzen, wenn der MQTT Broker nur die 1. Zeile empfängt
+DEBUG = False                   # True = Debug Infos auf die Konsole.
+
+###################################################################################################
+###################################################################################################
+
+#--------------------------------- Ab hier nichts mehr verändern! --------------------------------#
+
+import time
+import json
+import random
+import requests
+import hashlib
+import paho.mqtt.client as mqtt
+import urllib3
+import base64
+
+# Zufällige Zeitverzögerung 0 bis 57 Sekunden. Wichtig, damit der SofarCloud Server
+# nicht immer zur gleichen Zeit bombardiert wird!!
+verzoegerung = random.randint(0,57)
+if DEBUG:
+    verzoegerung = 0
+print("Datenabfrage startet in", verzoegerung, "Sekunden")
+time.sleep(verzoegerung)
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+URL = "https://global.sofarcloud.com/api/"
+
+def print_all_keys(d, prefix=""):
+    if isinstance(d, dict):
+        for k, v in d.items():
+            print_all_keys(v, prefix + k + "/")
+    elif isinstance(d, list):
+        for i, item in enumerate(d):
+            print_all_keys(item, prefix + str(i) + "/")
+    else:
+        print(f"{prefix}: {d}")
+
+# Funktion zum senden per MQTT
+def send_mqtt(client, topic, wert, station_id):
+    """Send MQTT"""
+    payload = "" if wert is None else str(wert)
+    client.publish(f"SofarCloud/{station_id}/{topic}", payload, qos=0, retain=True)
+
+def login():
+    headers = {
+        "Content-Type": "application/json",
+        "User-Agent": "okhttp/3.14.9"
+    }
+
+    payload = {
+        "accountName": USERNAME,
+        "expireTime": 2592000,  # 30 Tage
+        "password": PASSWORD
+    }
+
+    try:
+        LOGIN_URL = URL + "user/auth/he/login"
+        response = requests.post(LOGIN_URL, headers=headers, json=payload, verify=True)
+        if DEBUG:
+            print("Status code:", response.status_code)
+            print("Response:", response.text)
+
+        if response.status_code == 200:
+            data = response.json()
+            if data.get("code") == "0" and "data" in data:
+                token = data["data"].get("accessToken")
+                if DEBUG:
+                    print("✅ Login erfolgreich. Token:", token)
+                return token
+            else:
+                print("❌ Login fehlgeschlagen:", data.get("message"))
+        else:
+            print("❌ Serverfehler.")
+    except Exception as e:
+        print("🚫 Fehler beim Login:", str(e))
+
+    return None
+
+def get_sofar_station_data(token):
+
+    url_list = URL + "device/stationInfo/selectStationListPages"
+    headers = {
+        "authorization": token,
+        "app-version": "2.3.6",
+        "custom-origin": "sofar",
+        "custom-device-type": "1",
+        "request-from": "app",
+        "scene": "eu",
+        "bundlefrom": "2",
+        "appfrom": "6",
+        "timezone": "Europe/Zurich",
+        "accept-language": "en",
+        "user-agent": "okhttp/4.9.2",
+        "content-type": "application/json"
+    }
+    data = {"pageNum": 1, "pageSize": 10}
+    resp = requests.post(url_list, headers=headers, json=data)
+    stations = resp.json()["data"]["rows"]
+
+    # Für jede Station Details holen
+    all_realtime = []
+    for station in stations:
+        station_id = station["id"]
+        url_detail = f"{URL}device/stationInfo/selectStationDetail?stationId={station_id}"
+        resp_detail = requests.post(url_detail, headers=headers)
+        detail_data = resp_detail.json()
+        all_realtime.append(detail_data["data"]["stationRealTimeVo"])
+    return all_realtime
+
+def main():
+    """Hauptroutine"""
+
+    if DEBUG:
+        print()
+    if MQTT_ACTIVE:
+        try:
+            client = mqtt.Client("SofarCloud")
+            if DEBUG:
+                print("paho-mqtt version < 2.0")
+        except ValueError:
+            client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, "SofarCloud")
+            if DEBUG:
+                print("paho-mqtt version >= 2.0")
+
+    if DEBUG:
+        print()
+
+    if MQTT_ACTIVE:
+        client.username_pw_set(MQTT_USER, MQTT_PASS)
+        try:
+            client.connect(BROKER_ADDRESS, port=MQTT_PORT)
+        except OSError as error:
+            print("Verbindung zum MQTT-Broker fehlgeschlagen")
+            print("Connection to MQTT broker failed")
+            print(error)
+
+    token = login()
+
+    if not token:
+        print("No token. Abort")
+        return
+
+    daten = get_sofar_station_data(token)
+    if not daten:
+        print("Fehler. Keine Daten empfangen.")
+        if MQTT_ACTIVE:
+            client.disconnect()
+        return
+
+    if CREATE_JSON:
+        with open(JSON_PATH + "sofar_realtime.json", "w", encoding="utf-8") as f:
+            json.dump(daten, f, ensure_ascii=False, indent=2)
+
+
+    if DEBUG:
+        print()
+        print("Received data:")
+        print("=============")
+        print()
+        print_all_keys(daten)
+        print()
+
+    if MQTT_ACTIVE:
+        for idx, station in enumerate(daten):
+            station_id = station.get("id", f"station{idx}")
+            for key, value in station.items():
+                if not key.lower().endswith("unit"):
+                    send_mqtt(client, key, value, station_id)
+
+        if DELAY:
+            time.sleep(0.05)
+
+        client.disconnect()
+
+if __name__ == "__main__":
+    main()

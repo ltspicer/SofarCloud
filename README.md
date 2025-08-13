@@ -21,8 +21,6 @@ Weitere Instruktionen sind im Script-Kopf zufinden. Da werden auch die notwendig
 
 Hier kann auch die json Datei sofar_realtime.json angefordert werden.
 
-Wenn nur die erste Zeile übermittelt wird (kann vorkommen, wenn zBsp das sofarcloud.py Script auf dem gleichen Host wie das Smarthome System läuft), dann DELAY im Scriptkopf auf True setzen.
-
 
 
 ## Changelog
@@ -52,6 +50,4 @@ Create crontab (crontab -e):
 Further instructions can be found in the script header. The necessary data such as logins, IP address, passwords, etc. are also entered there.
 
 The json file sofar_realtime.json can also be requested here.
-
-If only the first line is transmitted (this can happen if, for example, the weathersense.py script is running on the same host as the smart home system), set DELAY to True in the script header.
 

@@ -44,7 +44,6 @@ CREATE_JSON = True              # True = erstelle sofar_realtime.json
 JSON_PATH = ""                  # Pfad für die Json Datei. Standardpfad ist bei Script.
                                 # sonst zBsp.: JSON_PATH = "/home/pi/"
 
-DELAY = True                    # Auf True setzen, wenn der MQTT Broker nicht alles empfängt
 DEBUG = False                   # True = Debug Infos auf die Konsole.
 
 ###################################################################################################
@@ -215,9 +214,7 @@ def main():
                 if not key.lower().endswith("unit"):
                     send_mqtt(client, key, value, station_id)
 
-        if DELAY:
-            time.sleep(0.05)
-
+        time.sleep(0.5)
         client.disconnect()
 
 if __name__ == "__main__":

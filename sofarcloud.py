@@ -44,7 +44,7 @@ CREATE_JSON = True              # True = erstelle sofar_realtime.json
 JSON_PATH = ""                  # Pfad für die Json Datei. Standardpfad ist bei Script.
                                 # sonst zBsp.: JSON_PATH = "/home/pi/"
 
-DELAY = False                   # Auf True setzen, wenn der MQTT Broker nur die 1. Zeile empfängt
+DELAY = True                    # Auf True setzen, wenn der MQTT Broker nicht alles empfängt
 DEBUG = False                   # True = Debug Infos auf die Konsole.
 
 ###################################################################################################

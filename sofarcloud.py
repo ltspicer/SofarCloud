@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 ###################################################################################################
-#################################             V1.0               ##################################
+#################################             V1.1               ##################################
 #############################  SofarCloud-Daten per MQTT versenden  ###############################
 #################################   (C) 2025 Daniel Luginbühl    ##################################
 ###################################################################################################
@@ -52,6 +52,7 @@ DEBUG = False                   # True = Debug Infos auf die Konsole.
 #--------------------------------- Ab hier nichts mehr verändern! --------------------------------#
 
 import time
+import datetime
 import json
 import random
 import requests
@@ -60,9 +61,9 @@ import paho.mqtt.client as mqtt
 import urllib3
 import base64
 
-# Zufällige Zeitverzögerung 0 bis 57 Sekunden. Wichtig, damit der SofarCloud Server
+# Zufällige Zeitverzögerung 0 bis 117 Sekunden. Wichtig, damit der SofarCloud Server
 # nicht immer zur gleichen Zeit bombardiert wird!!
-verzoegerung = random.randint(0,57)
+verzoegerung = random.randint(0,117)
 if DEBUG:
     verzoegerung = 0
 print("Datenabfrage startet in", verzoegerung, "Sekunden")
@@ -71,6 +72,24 @@ time.sleep(verzoegerung)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 URL = "https://global.sofarcloud.com/api/"
+appversion = "2.3.6"
+
+def get_local_timezone():
+    try:
+        # Python 3.9+
+        return datetime.datetime.now().astimezone().tzinfo.key
+    except AttributeError:
+        # Fallback für ältere Python-Versionen
+        tz_abbr = time.tzname[0]  # z. B. 'CET', 'CEST', 'UTC'
+        # Mapping Tabelle: Abkürzung -> IANA Name
+        tz_map = {
+            "CET": "Europe/Zurich",   # Mitteleuropäische Zeit
+            "CEST": "Europe/Zurich",  # Mitteleuropäische Sommerzeit
+            "UTC": "UTC",
+            "GMT": "Europe/London",
+        }
+        # Wenn Abkürzung nicht bekannt → Europe/Zurich als Standard
+        return tz_map.get(tz_abbr, "Europe/Zurich")
 
 def print_all_keys(d, prefix=""):
     if isinstance(d, dict):
@@ -112,6 +131,7 @@ def login():
             if data.get("code") == "0" and "data" in data:
                 token = data["data"].get("accessToken")
                 if DEBUG:
+                    print()
                     print("✅ Login erfolgreich. Token:", token)
                 return token
             else:
@@ -125,21 +145,28 @@ def login():
 
 def get_sofar_station_data(token):
 
+    timezone = get_local_timezone()
     url_list = URL + "device/stationInfo/selectStationListPages"
     headers = {
         "authorization": token,
-        "app-version": "2.3.6",
+        "app-version": appversion,
         "custom-origin": "sofar",
         "custom-device-type": "1",
         "request-from": "app",
         "scene": "eu",
         "bundlefrom": "2",
         "appfrom": "6",
-        "timezone": "Europe/Zurich",
+        "timezone": timezone,
         "accept-language": "en",
         "user-agent": "okhttp/4.9.2",
         "content-type": "application/json"
     }
+
+    if DEBUG:
+        print()
+        print("Timezone:", timezone)
+        print("App Version:", appversion)
+
     data = {"pageNum": 1, "pageSize": 10}
     resp = requests.post(url_list, headers=headers, json=data)
     stations = resp.json()["data"]["rows"]

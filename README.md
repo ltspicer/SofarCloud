@@ -25,6 +25,12 @@ Hier kann auch die json Datei sofar_realtime.json angefordert werden.
 
 ## Changelog
 
+### V1.1 (2025-08-24)
+
+- nun wird System Zeitzone verwendet
+
+- Zeitverzögerung 0-117s
+
 
 ### V1.0 (2025-08-12)
 

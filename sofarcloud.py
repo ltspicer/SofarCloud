@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 ###################################################################################################
-#################################             V1.1               ##################################
+#################################             V1.2               ##################################
 #############################  SofarCloud-Daten per MQTT versenden  ###############################
 #################################   (C) 2025 Daniel Luginbühl    ##################################
 ###################################################################################################
@@ -36,13 +36,13 @@ MQTT_USER = "xxxxxx"            # MQTT User      (im MQTT Broker definiert)
 MQTT_PASS = "yyyyyy"            # MQTT Passwort  (im MQTT Broker definiert)
 MQTT_PORT = 1883                # MQTT Port      (default: 1883)
 
-#----------------------------- Kann normalerweise belassen werden: -------------------------------#
-
 MQTT_ACTIVE = True              # Auf False, wenn nichts MQTT published werden soll
 
-CREATE_JSON = True              # True = erstelle sofar_realtime.json
-JSON_PATH = ""                  # Pfad für die Json Datei. Standardpfad ist bei Script.
-                                # sonst zBsp.: JSON_PATH = "/home/pi/"
+CREATE_JSON = True              # True = erstelle devData.json und forecast.json
+
+JSON_PATH = ""                  # Pfad für die Json Datei.
+                                # Standardpfad ist ein Unterverzeichnis "data" beim Script.
+                                # Sonst zBsp.: JSON_PATH = "/home/pi/"
 
 DEBUG = False                   # True = Debug Infos auf die Konsole.
 
@@ -60,6 +60,52 @@ import hashlib
 import paho.mqtt.client as mqtt
 import urllib3
 import base64
+import os
+from pathlib import Path
+
+if CREATE_JSON:
+    # Speicherort des aktuellen Skripts ermitteln
+    script_dir = Path(__file__).resolve().parent
+
+    # Falls JSON_PATH leer ist, nutze "Skript-Ordner + data/"
+    if not JSON_PATH or JSON_PATH.strip() == "":
+        target_dir = script_dir / "data"
+    else:
+        target_dir = Path(JSON_PATH)
+
+    if DEBUG:
+        print(f"Gewählter Zielpfad: {target_dir}")
+
+    # Prüfen, ob der Pfad existiert. Falls nicht, versuchen zu erstellen.
+    if not target_dir.exists():
+        try:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            if DEBUG:
+                print(f"Verzeichnis erfolgreich erstellt: {target_dir}")
+            
+        except PermissionError:
+            print(f"Fehler: Keine Berechtigung (Permission Denied), um das Verzeichnis '{target_dir}' zu erstellen.")
+            CREATE_JSON = False
+            if DEBUG:
+                exit(1)
+            
+        except FileNotFoundError:
+            print(f"Fehler: Ein Teil des Pfades '{target_dir}' ist ungültig oder nicht erreichbar.")
+            CREATE_JSON = False
+            if DEBUG:
+                exit(1)
+            
+        except Exception as e:
+            print(f"Fehler: Verzeichnis '{target_dir}' konnte nicht erstellt werden. Grund: {e}")
+            CREATE_JSON = False
+            if DEBUG:
+                exit(1)
+    else:
+        if DEBUG:
+            print(f"Verzeichnis existiert bereits: {target_dir}")
+
+    if CREATE_JSON:
+        JSON_PATH = os.path.join(str(target_dir), "")
 
 # Zufällige Zeitverzögerung 0 bis 117 Sekunden. Wichtig, damit der SofarCloud Server
 # nicht immer zur gleichen Zeit bombardiert wird!!

@@ -25,6 +25,11 @@ Hier kann auch die json Datei sofar_realtime.json angefordert werden.
 
 ## Changelog
 
+### V1.2 (2026-09-25)
+
+- JSON_PATH: Standard Unterverzeichnis "data" bei Script
+- JSON_PATH: Verzeichnis wird automatisch erstellt
+
 ### V1.1 (2025-08-24)
 
 - nun wird System Zeitzone verwendet
